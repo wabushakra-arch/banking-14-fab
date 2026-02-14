@@ -1,7 +1,14 @@
 import streamlit as st
 import pandas as pd
-from mistralai.client import MistralClient, ChatMessage
+from mistralai.client import MistralClient
 import os
+import sys
+
+try:
+    from mistralai.client import ChatMessage
+    HAS_CHAT_MESSAGE = True
+except ImportError:
+    HAS_CHAT_MESSAGE = False
 
 # Set page config
 st.set_page_config(
@@ -120,10 +127,16 @@ When answering customer questions:
         # Get chat history for context
         messages = []
         for msg in st.session_state.messages:
-            messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
+            if HAS_CHAT_MESSAGE:
+                messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
+            else:
+                messages.append({"role": msg["role"], "content": msg["content"]})
         
         # Add current user message
-        messages.append(ChatMessage(role="user", content=user_message))
+        if HAS_CHAT_MESSAGE:
+            messages.append(ChatMessage(role="user", content=user_message))
+        else:
+            messages.append({"role": "user", "content": user_message})
         
         # Call Mistral API
         response = client.chat(
