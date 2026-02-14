@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 st.title("🏦 HBDB Banking Assistant Bot")
-st.markdown("*Powered by Mistral AI - Your 24/7 Banking Support*")
+st.markdown("*Powered by Mistral AI Large - v3.0*")
 
 # Sidebar for API key and settings
 with st.sidebar:
