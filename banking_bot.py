@@ -3,6 +3,7 @@ import pandas as pd
 from mistralai.client import MistralClient
 import os
 import sys
+from pathlib import Path
 
 try:
     from mistralai.client import ChatMessage
@@ -70,8 +71,28 @@ with st.sidebar:
 # Load FAQ data
 @st.cache_data
 def load_faq_data():
-    df = pd.read_csv("hbdb_banking_faqs (2) (1).csv")
-    return df
+    try:
+        # Try multiple possible paths for the CSV file
+        possible_paths = [
+            "hbdb_faqs.csv",
+            "./hbdb_faqs.csv",
+            Path(__file__).parent / "hbdb_faqs.csv",
+        ]
+        
+        for path in possible_paths:
+            if isinstance(path, str):
+                if os.path.exists(path):
+                    return pd.read_csv(path)
+            else:
+                if path.exists():
+                    return pd.read_csv(str(path))
+        
+        # If file not found, return empty dataframe
+        st.warning("⚠️ FAQ database file not found. Using sample data.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error loading FAQ data: {str(e)}")
+        return pd.DataFrame()
 
 try:
     faq_df = load_faq_data()
