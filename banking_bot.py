@@ -17,7 +17,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🏦 HBDB Banking Assistant Bot")
-st.markdown("*Powered by Mistral AI*")
+st.markdown("*Powered by Mistral AI - v2.0*")
 
 with st.sidebar:
     st.header("⚙️ Configuration")
