@@ -2,17 +2,10 @@ import streamlit as st
 import pandas as pd
 from mistralai.client import MistralClient
 import os
-from pathlib import Path
-
-try:
-    from mistralai.client import ChatMessage
-    HAS_CHAT_MESSAGE = True
-except ImportError:
-    HAS_CHAT_MESSAGE = False
 
 st.set_page_config(
     page_title="HBDB Banking Bot",
-    page_icon="🏦",
+    page_icon="��",
     layout="wide"
 )
 
@@ -35,10 +28,8 @@ with st.sidebar:
 @st.cache_data
 def load_faq_data():
     try:
-        paths = ["hbdb_faqs.csv", "./hbdb_faqs.csv"]
-        for p in paths:
-            if os.path.exists(p):
-                return pd.read_csv(p)
+        if os.path.exists("hbdb_faqs.csv"):
+            return pd.read_csv("hbdb_faqs.csv")
         return pd.DataFrame()
     except:
         return pd.DataFrame()
@@ -56,20 +47,14 @@ def get_mistral_client(key):
 
 def get_response(msg, client):
     if not client:
-        return "Please enter your API key."
+        return "Please enter your API key in the sidebar."
     
     try:
         msgs = []
         for m in st.session_state.messages[-5:]:
-            if HAS_CHAT_MESSAGE:
-                msgs.append(ChatMessage(role=m["role"], content=m["content"]))
-            else:
-                msgs.append({"role": m["role"], "content": m["content"]})
+            msgs.append({"role": m["role"], "content": m["content"]})
         
-        if HAS_CHAT_MESSAGE:
-            msgs.append(ChatMessage(role="user", content=msg))
-        else:
-            msgs.append({"role": "user", "content": msg})
+        msgs.append({"role": "user", "content": msg})
         
         resp = client.chat(model="mistral-large-latest", messages=msgs)
         return resp.choices[0].message.content
@@ -95,7 +80,7 @@ if btn and inp:
         st.error("Enter API key in sidebar")
     else:
         st.session_state.messages.append({"role": "user", "content": inp})
-        with st.spinner("..."):
+        with st.spinner("Thinking..."):
             resp = get_response(inp, get_mistral_client(api_key))
         st.session_state.messages.append({"role": "assistant", "content": resp})
         st.rerun()
