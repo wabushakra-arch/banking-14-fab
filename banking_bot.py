@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from mistralai.client import MistralClient
 import os
-import sys
 from pathlib import Path
 
 try:
@@ -11,216 +10,95 @@ try:
 except ImportError:
     HAS_CHAT_MESSAGE = False
 
-# Set page config
 st.set_page_config(
     page_title="HBDB Banking Bot",
     page_icon="🏦",
     layout="wide"
 )
 
-# Custom CSS
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7fa;
-    }
-    .chat-message {
-        padding: 1.5rem;
-        border-radius: 0.8rem;
-        margin-bottom: 1rem;
-        display: flex
-        flex-direction: column;
-    }
-    .user-message {
-        background-color: #e3f2fd;
-        border-left: 4px solid #2196f3;
-    }
-    .bot-message {
-        background-color: #f3e5f5;
-        border-left: 4px solid #9c27b0;
-    }
+    .user-message { background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 1rem; border-radius: 0.5rem; margin: 0.5rem 0; }
+    .bot-message { background-color: #f3e5f5; border-left: 4px solid #9c27b0; padding: 1rem; border-radius: 0.5rem; margin: 0.5rem 0; }
     </style>
 """, unsafe_allow_html=True)
 
-# Title and header
 st.title("🏦 HBDB Banking Assistant Bot")
-st.markdown("*Powered by Mistral AI - Your 24/7 Banking Support*")
+st.markdown("*Powered by Mistral AI*")
 
-# Sidebar for API key and settings
 with st.sidebar:
     st.header("⚙️ Configuration")
-    api_key = st.text_input(
-        "Enter your Mistral API Key",
-        type="password",
-        help="Get your API key from Mistral console"
-    )
-    
+    api_key = st.text_input("Enter Mistral API Key", type="password")
     st.markdown("---")
-    st.header("📊 About HBDB")
-    st.info("""
-    HBDB is a modern banking institution offering:
-    - Savings & Checking Accounts
-    - Credit & Debit Cards
-    - Personal & Business Loans
-    - Mortgage Services
-    - Global Transfers
-    - Mobile Banking
-    - And much more!
-    """)
+    st.info("HBDB Banking Services: Accounts, Cards, Loans, Transfers & More")
 
-# Load FAQ data
 @st.cache_data
 def load_faq_data():
     try:
-        # Try multiple possible paths for the CSV file
-        possible_paths = [
-            "hbdb_faqs.csv",
-            "./hbdb_faqs.csv",
-            Path(__file__).parent / "hbdb_faqs.csv",
-        ]
-        
-        for path in possible_paths:
-            if isinstance(path, str):
-                if os.path.exists(path):
-                    return pd.read_csv(path)
-            else:
-                if path.exists():
-                    return pd.read_csv(str(path))
-        
-        # If file not found, return empty dataframe
-        st.warning("⚠️ FAQ database file not found. Using sample data.")
+        paths = ["hbdb_faqs.csv", "./hbdb_faqs.csv"]
+        for p in paths:
+            if os.path.exists(p):
+                return pd.read_csv(p)
         return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error loading FAQ data: {str(e)}")
+    except:
         return pd.DataFrame()
 
-try:
-    faq_df = load_faq_data()
-    st.sidebar.success(f"✓ Loaded {len(faq_df)} FAQ entries")
-except Exception as e:
-    st.sidebar.error(f"Error loading FAQ: {e}")
-    faq_df = None
+faq_df = load_faq_data()
+if len(faq_df) > 0:
+    st.sidebar.success(f"✓ {len(faq_df)} FAQs loaded")
 
-# Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Initialize Mistral client
 @st.cache_resource
-def get_mistral_client(api_key):
-    if api_key:
-        return MistralClient(api_key=api_key)
-    return None
+def get_mistral_client(key):
+    return MistralClient(api_key=key) if key else None
 
-# Create context from FAQ
-def create_faq_context():
-    if faq_df is None:
-        return ""
-    context = "HBDB Banking FAQ Database:\n\n"
-    for idx, row in faq_df.iterrows():
-        question = row.iloc[0] if len(row) > 0 else ""
-        answer = row.iloc[1] if len(row) > 1 else ""
-        context += f"Q: {question}\nA: {answer}\n\n"
-    return context
-
-# Get response from Mistral
-def get_mistral_response(user_message, client):
+def get_response(msg, client):
     if not client:
-        return "Please enter a valid Mistral API key to use the bot."
+        return "Please enter your API key."
     
-    faq_context = create_faq_context()
-    
-    system_prompt = f"""You are a helpful HBDB Banking Assistant. Your role is to provide accurate, 
-friendly, and helpful information about HBDB banking services. 
-
-Here is the HBDB FAQ database you should reference:
-
-{faq_context}
-
-When answering customer questions:
-1. Search the FAQ database first for relevant information
-2. Provide accurate, concise answers
-3. Be friendly and professional
-4. If you don't know the answer, suggest contacting HBDB customer service
-5. Always mention relevant phone numbers or resources when available"""
-
     try:
-        # Get chat history for context
-        messages = []
-        for msg in st.session_state.messages:
+        msgs = []
+        for m in st.session_state.messages[-5:]:
             if HAS_CHAT_MESSAGE:
-                messages.append(ChatMessage(role=msg["role"], content=msg["content"]))
+                msgs.append(ChatMessage(role=m["role"], content=m["content"]))
             else:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+                msgs.append({"role": m["role"], "content": m["content"]})
         
-        # Add current user message
         if HAS_CHAT_MESSAGE:
-            messages.append(ChatMessage(role="user", content=user_message))
+            msgs.append(ChatMessage(role="user", content=msg))
         else:
-            messages.append({"role": "user", "content": user_message})
+            msgs.append({"role": "user", "content": msg})
         
-        # Call Mistral API
-        response = client.chat(
-            model="mistral-large-latest",
-            messages=messages
-        )
-        
-        return response.choices[0].message.content
-    
+        resp = client.chat(model="mistral-large-latest", messages=msgs)
+        return resp.choices[0].message.content
     except Exception as e:
-        return f"Error getting response: {str(e)}"
+        return f"Error: {str(e)[:100]}"
 
-# Display chat history
-for message in st.session_state.messages:
-    with st.container():
-        if message["role"] == "user":
-            st.markdown(f'<div class="chat-message user-message"><strong>You:</strong> {message["content"]}</div>', unsafe_allow_html=True)
+if st.session_state.messages:
+    st.subheader("Chat")
+    for m in st.session_state.messages:
+        if m["role"] == "user":
+            st.markdown(f'<div class="user-message"><b>You:</b> {m["content"]}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="chat-message bot-message"><strong>🤖 HBDB Bot:</strong> {message["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="bot-message"><b>Bot:</b> {m["content"]}</div>', unsafe_allow_html=True)
 
-# Chat input
 col1, col2 = st.columns([0.9, 0.1])
-
 with col1:
-    user_input = st.text_input(
-        "Ask me anything about HBDB banking services...",
-        placeholder="e.g., How do I open a savings account?",
-        label_visibility="collapsed"
-    )
-
+    inp = st.text_input("Ask about HBDB services...", label_visibility="collapsed")
 with col2:
-    send_button = st.button("Send", key="send_btn")
+    btn = st.button("Send")
 
-# Process user input
-if send_button and user_input:
-    client = get_mistral_client(api_key)
-    
+if btn and inp:
     if not api_key:
-        st.error("❌ Please enter your Mistral API key in the sidebar to continue.")
+        st.error("Enter API key in sidebar")
     else:
-        # Add user message to history
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_input
-        })
-        
-        # Get bot response
-        with st.spinner("🤔 Thinking..."):
-            bot_response = get_mistral_response(user_input, client)
-        
-        # Add bot response to history
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": bot_response
-        })
-        
-        # Rerun to display new messages
+        st.session_state.messages.append({"role": "user", "content": inp})
+        with st.spinner("..."):
+            resp = get_response(inp, get_mistral_client(api_key))
+        st.session_state.messages.append({"role": "assistant", "content": resp})
         st.rerun()
 
-# Footer
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; font-size: 0.8rem;">
-    🏦 HBDB Banking Assistant | Powered by Mistral AI | Always here to help
-</div>
-""", unsafe_allow_html=True)
+st.caption("🏦 HBDB Banking Assistant | Powered by Mistral AI")
